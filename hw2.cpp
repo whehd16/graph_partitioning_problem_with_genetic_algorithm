@@ -1,4 +1,5 @@
 #define _GLIBCXX_USE_CXX11_ABI 0/1
+#define _CRT_SECURE_NO_WARNINGS 
 #include<iostream>
 #include<string>
 #include<vector>
@@ -6,28 +7,49 @@
 #include<map>
 #include<cstdlib>
 #include<algorithm>
+#include<queue>
 
 using namespace std;
 
 #define GENERATION_SIZE 100
 #define POPULATION_SIZE 100
 
-void fitness(const vector<vector<int>> &clusters, map< int, const vector<int> > &m, int num_clusters){
-    //clusters는 클러스터 번호마다 인덱스가 포함되어 있다.
-    //m을 인자로 받아서 
+int cut_size(const vector<int>& clusterA, const vector<int>& clusterB, map< int, vector<int> >& m, int num_clusters) {
+    //clusterA, B 에는 인덱스가 있음
+    // A= { 1, 3 ,5 }, B = {2, 4, 6}
+    int temp_cut_size = 0;
     
-    int cut_size = 0;
+    vector<int> t(500, 0);
 
-    for(int i = 0; i < clusters.size(); i++){
-        for(int j = i; j < clusters.size(); j++){
-            //clusters[i]
-            //clusters[j]
+    for (int i = 0; i < clusterA.size(); i++){
+        for (int j = 0; j < m[clusterA[i]].size(); j++) {
+            t[m[clusterA[i]][j]] += 1;
         }
     }
-
+    
+    for (int i = 0; i < clusterB.size(); i++) {
+        if (t[clusterB[i]] != 0) {
+            temp_cut_size += t[clusterB[i]];
+        }            
+    }
+    
+    return temp_cut_size;    
 }
 
-void evalutate(const vector< vector<int> > &chromosomes, vector<int> &fitness_list, map< int, const vector<int> > &m, int num_clusters){
+int fitness(const vector<vector<int>> &clusters, map< int, vector<int> > &m, int num_clusters){     
+    
+    int global_cut_size = 0;
+    
+    for(int i = 0; i < clusters.size()-1; i++){
+        for(int j = i+1; j < clusters.size(); j++){
+            global_cut_size += cut_size(clusters[i], clusters[j], m, num_clusters);
+        }
+    }
+    
+    return global_cut_size;
+}
+
+void evalutate(const vector< vector<int> > &chromosomes, vector<int> &fitness_list, map< int, vector<int> > &m, int num_clusters){
 
     for(int i = 0; i < chromosomes.size(); i++){ //100개의 염색체 각각에 대해
         vector<vector<int>> clusters;
@@ -40,9 +62,8 @@ void evalutate(const vector< vector<int> > &chromosomes, vector<int> &fitness_li
         for(int j = 0; j < chromosomes[i].size(); j++){ //염색체 길이 만큼 돌면서 각 클러스터에 인덱스를 추가함
             //chromosomes[i] == 010101001 ...
             clusters[chromosomes[i][j]].push_back(j);
-        }
-
-        fitness_list.push_back(fitness(clusters, map< int, const vector<int> > &m, int num_clusters));
+        }        
+        fitness_list[i] = fitness(clusters, m, num_clusters);
     }
 }
 
@@ -89,6 +110,124 @@ void initialize(vector< vector<int> > &chromosomes, int num_clusters, int num_no
             
         }        
         chromosomes.push_back(chromosome);
+        //cout << cluster_count[0] << " " << cluster_count[1] << endl;
+    }
+}
+
+double drand(double low, double high)
+{
+    double d;
+
+    d = (double)rand() / RAND_MAX;
+    return (low + d * (high - low));
+}
+
+
+vector<float> make_roullte(vector<int>& fitness_list) {
+    int fit_worst = *max_element(fitness_list.begin(), fitness_list.end());
+    int fit_best = *min_element(fitness_list.begin(), fitness_list.end());
+    
+    //min 문제일때 높은게 worst, 낮은게 best
+    //max 문제일때 높은게 best, 낮은게 worst
+    vector<float> roulette(100, 0);
+    for (int i = 0; i < fitness_list.size(); i++) {
+        roulette[i] = (fit_worst - fitness_list[i]) + (fit_worst - fit_best) / 2;        
+        if (i > 0) {
+            roulette[i] += roulette[i - 1];
+        }
+    }
+    
+    return roulette;
+}
+
+vector<int> selection(vector<float>&roulette, vector<int>& fitness_list) {
+    
+    vector<int> parents_index(2, -1);
+    int parents_i = 0;
+
+    while (parents_i < 2) {
+        
+        float point = drand(0.0, roulette.back());
+        
+        for (int i = 0; i < roulette.size(); i++) {                        
+            if (roulette[i] > point) {
+                if (i == 0) {
+                    parents_index[i++] = i;
+                    break;
+                }
+                else {
+                    if (parents_index[0] == i) {
+                        break;
+                    }
+                    else {
+                        parents_index[parents_i++] = i;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    return parents_index;    
+
+}
+int compare(vector<int> c1, vector<int> c2) {
+    int temp_count = 0;
+    for (int i = 0; i < c1.size(); i++) {
+        for (int j = 0; j < c2.size(); j++) {
+            if (c1[i] == c2[j]) {
+                temp_count += 1;
+            }
+        }
+    }
+    return temp_count;
+}
+
+void normalization(vector<int>& p1, vector<int>& p2, int cluster_num) {
+
+    vector<vector<int>> c1, c2;
+    vector<bool> check1(cluster_num, 0);
+    vector<bool> check2(cluster_num, 0);
+
+    vector<vector<int>> count_matrix(cluster_num, vector <int>(cluster_num, 0));
+
+    for (int i = 0; i < cluster_num; i++) {
+        vector<int> temp1;
+        vector<int> temp2;
+        c1.push_back(temp1);
+        c2.push_back(temp2);
+    }
+
+    for (int i = 0; i < p1.size(); i++) {
+        c1[p1[i]].push_back(i);
+    }
+    for (int i = 0; i < p1.size(); i++) {
+        c2[p2[i]].push_back(i);
+    }
+
+    priority_queue<vector<int>> pq;   
+    for (int i = 0; i < c1.size(); i++) {
+        for (int j = 0; j < c2.size(); j++) {
+            vector<int> vec = {compare(c1[i], c2[j]), i, j};
+            pq.push(vec); //목표는 가장 최댓값을 가지는 i,j를 구하고 j를 i로 변환시키는 것.            
+        }
+    }
+    //11 12 13 21 22 23 31 32 33   1->2가 제일 커서 j=2를 i=1로 바꿀거임
+    //  23 31 33
+
+    while (!pq.empty()) {
+        int temp_size = pq.size();
+        int temp_count = 0;
+        vector<int> target = pq.top();
+        while (temp_count != temp_size) {
+            vector<int> temp_target = pq.top();
+            if (target[1] == temp_target[1] || target[2] == temp_target[2]) {
+                pq.pop();
+            }
+            temp_size += 1;
+            //여기부터
+        }
+        
     }
 }
 
@@ -108,6 +247,7 @@ int main(int argc, char *argv[]){
     int count = 0;    
     //입력 파일에 대해 그래프 노드 추가
     map< int, vector<int> > m;
+
     while(getline(cin, s)){
         vector<string> n = split(s, " ");
         if(n.size() > 3){ //추가할 노드가 있다면
@@ -121,21 +261,36 @@ int main(int argc, char *argv[]){
     // 인코딩
     //K개로 클러스터링 된 클러스터와, 노드 개수 전달해서 초기화
     vector<vector<int>> chromosomes;    
-    vector<int> fitness_list;
+    vector<int> fitness_list(POPULATION_SIZE, 0);
 
     //chromosome, m 에는 0~499 노드 번호에 대한 정보 담겨있음
     initialize(chromosomes, atoi(argv[1]), count);
-    evalutate(chromosomes, fitness_list, m, atoi(argv[1]));
 
-    // for(int n_gen = 0; n_gen < GENERATION_SIZE; n_gen++){
+    //fitness_list에 해 적합도 담김
+    int n_gen = 0;
+    while (true) {
+        evalutate(chromosomes, fitness_list, m, atoi(argv[1]));
+        if (n_gen > GENERATION_SIZE) {
+            break;
+        }        
+        //selection   
+        vector<float>roulette = make_roullte(fitness_list);
+        
+        for (int i = 0; i < POPULATION_SIZE; i++) {
+            vector<int> parents_index = selection(roulette, fitness_list);                        
+      
+            //normalization
+            vector<int> p1 = chromosomes[parents_index[0]];
+            vector<int> p2 = chromosomes[parents_index[1]];
 
+            normalization(p1, p2, atoi(argv[1]);
 
-    //     //cross
+            //crossover
 
-    //     //평가하고
-    // }
-
-    //연산 정의
+            //mutation
+        }
+        cout << "--------------------------" << endl;                
+    }    
 }
 
 
