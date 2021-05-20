@@ -9,11 +9,16 @@
 #include<algorithm>
 #include<queue>
 #include<time.h>
+#include<fstream>
 
 using namespace std;
 #define NUMBEROFNODES 500
 #define GENERATION_SIZE 500
 #define POPULATION_SIZE 30
+#define EXPERIMENTS 100
+
+int optimal = 0;
+vector<int> optimals;
 
 int cut_size(const vector<int>& clusterA, const vector<int>& clusterB, map< int, vector<int> >& m, int num_clusters) {
     //clusterA, B 에는 인덱스가 있음
@@ -55,7 +60,6 @@ int fitness(const vector<vector<int>> &clusters, map< int, vector<int> > &m, int
 
 void evalutate(const vector< vector<int> > &chromosomes, vector<int> &fitness_list, map< int, vector<int> > &m, int num_clusters){
     
-
     for(int i = 0; i < chromosomes.size(); i++){ //100개의 염색체 각각에 대해
         vector<vector<int>> clusters;
 
@@ -380,18 +384,18 @@ void balancing(vector<int>& offspring, int cluster_num) {
 void mutation(vector<int>& offspring, int cluster_num) {
     // mutation rates = 0.01    
 
-    int c0 = 0;
-    int c1 = 0;
-    for (int i = 0; i < offspring.size(); i++) {
-        if (offspring[i] == 0) {
-            c0 += 1;
-        }
-        else {
-            c1 += 1;
-        }
-    }
+    //int c0 = 0;
+    //int c1 = 0;
+    //for (int i = 0; i < offspring.size(); i++) {
+    //    if (offspring[i] == 0) {
+    //        c0 += 1;
+    //    }
+    //    else {
+    //        c1 += 1;
+    //    }
+    //}
 
-    cout << c0 << " "<<  c1 << endl;
+    ////cout << c0 << " "<<  c1 << endl;
 
     for (int i = 0; i < offspring.size(); i++) {
         if (rand() % 2000 == 1) {            
@@ -407,18 +411,18 @@ void mutation(vector<int>& offspring, int cluster_num) {
         }
     }
 
-    c0 = 0;
-    c1 = 0;
-    for (int i = 0; i < offspring.size(); i++) {
-        if (offspring[i] == 0) {
-            c0 += 1;
-        }
-        else {
-            c1 += 1;
-        }
-    }
-    cout << c0 << " " << c1 << endl;
-    cout << "========================" << endl;
+    //c0 = 0;
+    //c1 = 0;
+    //for (int i = 0; i < offspring.size(); i++) {
+    //    if (offspring[i] == 0) {
+    //        c0 += 1;
+    //    }
+    //    else {
+    //        c1 += 1;
+    //    }
+    //}
+    //cout << c0 << " " << c1 << endl;
+    //cout << "========================" << endl;
 }
 
 vector<string> split(string s, string divid) {
@@ -434,14 +438,14 @@ vector<string> split(string s, string divid) {
 
 void show_best_fitness(vector<int> fitness) {
     sort(fitness.begin(), fitness.end());
-    cout << "Best : " << fitness[0] << endl;
+    //cout << "Best : " << fitness[0] << endl;
+    optimal = fitness[0];
 }
 
 int main(int argc, char *argv[]){
-
+            
     time_t start, end;
-    start = time(NULL);
-
+    vector<string> files;        
     string s;    
     srand((unsigned int)time(NULL));
     int count = 0;    
@@ -457,66 +461,103 @@ int main(int argc, char *argv[]){
         }
         count++;
     }
+    for (int t = 0; t < EXPERIMENTS; t++) {
+        cout << t << " th experiments" << endl;
+        start = time(NULL);
 
-    // 인코딩
-    //K개로 클러스터링 된 클러스터와, 노드 개수 전달해서 초기화
-    vector<vector<int>> chromosomes;    
-    vector<int> fitness_list(POPULATION_SIZE, 0);
+        // 인코딩
+        //K개로 클러스터링 된 클러스터와, 노드 개수 전달해서 초기화
+        vector<vector<int>> chromosomes;
+        vector<int> fitness_list(POPULATION_SIZE, 0);
 
-    //chromosome, m 에는 0~499 노드 번호에 대한 정보 담겨있음
-    initialize(chromosomes, atoi(argv[1]), count);
+        //chromosome, m 에는 0~499 노드 번호에 대한 정보 담겨있음
+        initialize(chromosomes, atoi(argv[1]), count);
 
-    //fitness_list에 해 적합도 담김
-    int n_gen = 0;
-    while (true) {
-        evalutate(chromosomes, fitness_list, m, atoi(argv[1]));                
-        show_best_fitness(fitness_list);
-        end = time(NULL);
-        if (end - start >= 60) {
-            cout << "time over" << endl;
-            break;
+        //fitness_list에 해 적합도 담김
+        int n_gen = 0;
+        while (true) {
+            evalutate(chromosomes, fitness_list, m, atoi(argv[1]));
+            show_best_fitness(fitness_list);
+            end = time(NULL);
+            if (end - start >= 60) {                
+                cout << "time over" << endl;
+                break;
+            }
+
+            /*cout << " ========================= " << endl;
+            cout << n_gen << " GENERATION" << endl;*/
+            if (n_gen > GENERATION_SIZE) {                
+                break;
+            }
+
+            //selection   
+            vector<float>roulette = make_roullte(fitness_list);
+            if (roulette[0] == -1) {                
+                cout << "convergence" << endl;
+                break;
+            }
+
+            vector<vector<int>> new_chromosomes;
+            new_chromosomes.push_back(chromosomes[min_element(fitness_list.begin(), fitness_list.end()) - fitness_list.begin()]);
+            for (int i = 1; i < POPULATION_SIZE; i++) {
+                //cout << "selection" << endl;
+                //cout << roulette[roulette.size()-1]<<endl;
+                vector<int> parents_index = selection(roulette, fitness_list);
+
+                //normalization
+                vector<int> p1 = chromosomes[parents_index[0]];
+                vector<int> p2 = chromosomes[parents_index[1]];
+
+                normalization(p1, p2, atoi(argv[1]));
+                //cout << "crossver" << endl;
+                //crossover
+                vector<int> new_offspring = multi_point_xover(p1, p2, 5);
+
+                balancing(new_offspring, atoi(argv[1]));
+
+                //cout << "mutation" << endl;
+                //mutation
+                mutation(new_offspring, atoi(argv[1]));
+                new_chromosomes.push_back(new_offspring);
+            }
+            chromosomes = new_chromosomes;
+            n_gen++;
+            
         }
-        
-        cout << " ========================= " << endl;
-        cout << n_gen << " GENERATION" << endl;
-        if (n_gen > GENERATION_SIZE) {
-            break;
+        //파일 오픈        
+        cout << "optimal : " << optimal << endl;
+        optimals.push_back(optimal);
+    }    
+    string filePath = "min_" + string(argv[1]) + "_inputA.txt";
+    // write File
+    ofstream writeFile(filePath.data());
+    int sum = 0;
+    if (writeFile.is_open()) {
+        for (int n = 0; n < optimals.size()-1; n++) {
+            writeFile << n;
+            writeFile << " : ";
+            writeFile << optimals[n];
+            writeFile << "\n";
+            sum += optimals[n];
         }                
 
-        //selection   
-        vector<float>roulette = make_roullte(fitness_list);
-        if (roulette[0] == -1) {
-            cout << "convergence" << endl;
-            break;
+        writeFile << "\n";
+        writeFile << "Best : ";
+        writeFile << *optimals.end();
+        writeFile << "\n";
+        writeFile << "Avg : ";
+        writeFile << sum / EXPERIMENTS;
+        writeFile << "Std : ";
+        float avg = sum / EXPERIMENTS;
+        float std_sum = 0;
+        for (int n = 0; n < optimals.size(); n++) {
+            std_sum += pow(float(optimals[n] - avg), 2);
         }
+        writeFile << std_sum / EXPERIMENTS;       
+        writeFile << "\n";
 
-        vector<vector<int>> new_chromosomes;
-        new_chromosomes.push_back(chromosomes[min_element(fitness_list.begin(), fitness_list.end()) - fitness_list.begin()]);
-        for (int i = 1; i < POPULATION_SIZE; i++) {
-            //cout << "selection" << endl;
-            //cout << roulette[roulette.size()-1]<<endl;
-            vector<int> parents_index = selection(roulette, fitness_list);                        
-      
-            //normalization
-            vector<int> p1 = chromosomes[parents_index[0]];
-            vector<int> p2 = chromosomes[parents_index[1]];
-
-            normalization(p1, p2, atoi(argv[1]));
-            //cout << "crossver" << endl;
-            //crossover
-            vector<int> new_offspring = multi_point_xover(p1, p2, 5);              
-
-            balancing(new_offspring, atoi(argv[1]));
-
-            //cout << "mutation" << endl;
-            //mutation
-            mutation(new_offspring, atoi(argv[1]));
-            new_chromosomes.push_back(new_offspring);            
-        }       
-        
-        chromosomes = new_chromosomes;
-        n_gen++;
-    }    
+        writeFile.close();
+    }
 }
 
 
