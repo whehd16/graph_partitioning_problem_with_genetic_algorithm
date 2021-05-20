@@ -8,6 +8,7 @@
 #include<cstdlib>
 #include<algorithm>
 #include<queue>
+#include<time.h>
 
 using namespace std;
 
@@ -17,16 +18,19 @@ using namespace std;
 int cut_size(const vector<int>& clusterA, const vector<int>& clusterB, map< int, vector<int> >& m, int num_clusters) {
     //clusterA, B 에는 인덱스가 있음
     // A= { 1, 3 ,5 }, B = {2, 4, 6}
+    
     int temp_cut_size = 0;
     
     vector<int> t(500, 0);
-
+    /*cout << "============" << endl;
+    cout << clusterA.size() << endl;*/
     for (int i = 0; i < clusterA.size(); i++){
         for (int j = 0; j < m[clusterA[i]].size(); j++) {
             t[m[clusterA[i]][j]] += 1;
         }
     }
-    
+    /*cout << clusterB.size() << endl;
+    cout << "============" << endl;*/
     for (int i = 0; i < clusterB.size(); i++) {
         if (t[clusterB[i]] != 0) {
             temp_cut_size += t[clusterB[i]];
@@ -50,6 +54,7 @@ int fitness(const vector<vector<int>> &clusters, map< int, vector<int> > &m, int
 }
 
 void evalutate(const vector< vector<int> > &chromosomes, vector<int> &fitness_list, map< int, vector<int> > &m, int num_clusters){
+    
 
     for(int i = 0; i < chromosomes.size(); i++){ //100개의 염색체 각각에 대해
         vector<vector<int>> clusters;
@@ -57,12 +62,18 @@ void evalutate(const vector< vector<int> > &chromosomes, vector<int> &fitness_li
         for(int j = 0; j < num_clusters; j++){
             vector<int> cluster;
             clusters.push_back(cluster);
-        }
-        
+        }        
         for(int j = 0; j < chromosomes[i].size(); j++){ //염색체 길이 만큼 돌면서 각 클러스터에 인덱스를 추가함
-            //chromosomes[i] == 010101001 ...
+            //chromosomes[i] == 010101001 ...            
             clusters[chromosomes[i][j]].push_back(j);
         }        
+
+        //
+        /*for (int j = 0; j < clusters.size(); j++) {            
+            cout << "j :" << j << " : " << clusters[j].size() << endl;
+        }*/
+            
+        //
         fitness_list[i] = fitness(clusters, m, num_clusters);
     }
 }
@@ -186,9 +197,11 @@ int compare(vector<int> c1, vector<int> c2) {
 void normalization(vector<int>& p1, vector<int>& p2, int cluster_num) {
 
     vector<vector<int>> c1, c2;
-    vector<bool> check1(cluster_num, 0);
-    vector<bool> check2(cluster_num, 0);
+    vector<bool> check_p2(p2.size(), false);   
 
+    int before_count = 0;
+    int after_count = 0;    
+    
     vector<vector<int>> count_matrix(cluster_num, vector <int>(cluster_num, 0));
 
     for (int i = 0; i < cluster_num; i++) {
@@ -224,11 +237,109 @@ void normalization(vector<int>& p1, vector<int>& p2, int cluster_num) {
             if (target[1] == temp_target[1] || target[2] == temp_target[2]) {
                 pq.pop();
             }
-            temp_size += 1;
-            //여기부터
+            temp_count += 1;            
+        }
+        if (target[2] == target[1]) {
+            continue;
+        }
+        else {
+            for (int i = 0; i < p2.size(); i++) {
+                if (p2[i] == target[2] && !check_p2[i]) {
+                    p2[i] = target[1];
+                    check_p2[i] = true;
+                }
+            }
+        }        
+    }
+}
+
+vector<int> multi_point_xover(vector<int> p1, vector<int> p2, int num_points) {
+    vector<int> check_random(p1.size(), 0);
+    vector<int> multi_point;
+    
+    vector<int> offspring;
+
+    int now_count = 0;
+    
+    while (now_count != num_points) {
+        int rand_num = rand() % p1.size();
+        if (check_random[rand_num] == 0) {
+            multi_point.push_back(rand_num);
+            check_random[rand_num] = 1;
+            now_count += 1;
+        }
+    }
+
+    sort(multi_point.begin(), multi_point.end());
+
+    int temp_start = 0;
+    int temp_end = multi_point[0];
+
+    for (int i = 0; i < multi_point.size(); i++) {
+        
+        for (int j = temp_start; j <= temp_end; j++) {
+            if (i % 2 == 0) { //부모 1
+                offspring.push_back(p1[j]);
+            }
+            else {
+                offspring.push_back(p2[j]);
+            }
         }
         
+        temp_start = temp_end+1;
+        if (i + 1 == multi_point.size() - 1) {
+            temp_end = p1.size()-1;
+        }
+        else if(i+1 != multi_point.size()) {
+            temp_end = multi_point[i + 1];
+        }        
+    }        
+
+    return offspring;
+}
+
+void mutation(vector<int>& offspring, int cluster_num) {
+    // mutation rates = 0.01    
+
+    int c0 = 0;
+    int c1 = 0;
+    for (int i = 0; i < offspring.size(); i++) {
+        if (offspring[i] == 0) {
+            c0 += 1;
+        }
+        else {
+            c1 += 1;
+        }
     }
+
+    //cout << c0 << " "<<  c1 << endl;
+
+    for (int i = 0; i < offspring.size(); i++) {
+        if (rand() % 2000 == 1) {            
+            int swap_index1 = rand() % offspring.size();
+            int swap_index2 = swap_index1;
+            while (swap_index1 == swap_index2) {
+                swap_index2 = rand() % offspring.size();
+            }
+            
+            int temp = offspring[swap_index1];
+            offspring[swap_index1] = offspring[swap_index2];
+            offspring[swap_index2] = temp;
+        }
+    }
+
+    //c0 = 0;
+    //c1 = 0;
+    //for (int i = 0; i < offspring.size(); i++) {
+    //    if (offspring[i] == 0) {
+    //        c0 += 1;
+    //    }
+    //    else {
+    //        c1 += 1;
+    //    }
+    //}
+    //cout << c0 << " " << c1 << endl;
+    //cout << "========================" << endl;
 }
 
 vector<string> split(string s, string divid) {
@@ -242,8 +353,14 @@ vector<string> split(string s, string divid) {
 	return v;
 }
 
+void show_best_fitness(vector<int> fitness) {
+    sort(fitness.begin(), fitness.end());
+    cout << "Best : " << fitness[0] << endl;
+}
+
 int main(int argc, char *argv[]){
     string s;    
+    srand((unsigned int)time(NULL));
     int count = 0;    
     //입력 파일에 대해 그래프 노드 추가
     map< int, vector<int> > m;
@@ -269,13 +386,19 @@ int main(int argc, char *argv[]){
     //fitness_list에 해 적합도 담김
     int n_gen = 0;
     while (true) {
-        evalutate(chromosomes, fitness_list, m, atoi(argv[1]));
+        
+        evalutate(chromosomes, fitness_list, m, atoi(argv[1]));                
+        show_best_fitness(fitness_list);
+        cout << " ========================= " << endl;
+        cout << n_gen << " GENERATION" << endl;
         if (n_gen > GENERATION_SIZE) {
             break;
-        }        
+        }                
+
         //selection   
         vector<float>roulette = make_roullte(fitness_list);
-        
+
+        vector<vector<int>> new_chromosomes;
         for (int i = 0; i < POPULATION_SIZE; i++) {
             vector<int> parents_index = selection(roulette, fitness_list);                        
       
@@ -283,13 +406,19 @@ int main(int argc, char *argv[]){
             vector<int> p1 = chromosomes[parents_index[0]];
             vector<int> p2 = chromosomes[parents_index[1]];
 
-            normalization(p1, p2, atoi(argv[1]);
+            normalization(p1, p2, atoi(argv[1]));
 
             //crossover
+            vector<int> new_offspring = multi_point_xover(p1, p2, 3);              
+
 
             //mutation
-        }
-        cout << "--------------------------" << endl;                
+            mutation(new_offspring, atoi(argv[1]));
+            new_chromosomes.push_back(new_offspring);            
+        }       
+        
+        chromosomes = new_chromosomes;
+        n_gen++;
     }    
 }
 
