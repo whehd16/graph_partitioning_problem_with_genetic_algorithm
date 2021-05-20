@@ -12,8 +12,8 @@
 
 using namespace std;
 
-#define GENERATION_SIZE 100
-#define POPULATION_SIZE 100
+#define GENERATION_SIZE 500
+#define POPULATION_SIZE 30
 
 int cut_size(const vector<int>& clusterA, const vector<int>& clusterB, map< int, vector<int> >& m, int num_clusters) {
     //clusterA, B 에는 인덱스가 있음
@@ -137,10 +137,16 @@ double drand(double low, double high)
 vector<float> make_roullte(vector<int>& fitness_list) {
     int fit_worst = *max_element(fitness_list.begin(), fitness_list.end());
     int fit_best = *min_element(fitness_list.begin(), fitness_list.end());
-    
+
+    vector<float> roulette(POPULATION_SIZE, 0);
+
+    if (fit_worst == fit_best) {
+        roulette[0] = -1;
+        return roulette;
+    }
     //min 문제일때 높은게 worst, 낮은게 best
     //max 문제일때 높은게 best, 낮은게 worst
-    vector<float> roulette(100, 0);
+    
     for (int i = 0; i < fitness_list.size(); i++) {
         roulette[i] = (fit_worst - fitness_list[i]) + (fit_worst - fit_best) / 2;        
         if (i > 0) {
@@ -359,6 +365,10 @@ void show_best_fitness(vector<int> fitness) {
 }
 
 int main(int argc, char *argv[]){
+
+    time_t start, end;
+    start = time(NULL);
+
     string s;    
     srand((unsigned int)time(NULL));
     int count = 0;    
@@ -386,9 +396,14 @@ int main(int argc, char *argv[]){
     //fitness_list에 해 적합도 담김
     int n_gen = 0;
     while (true) {
-        
         evalutate(chromosomes, fitness_list, m, atoi(argv[1]));                
         show_best_fitness(fitness_list);
+        end = time(NULL);
+        if (end - start >= 60) {
+            cout << "time over" << endl;
+            break;
+        }
+        
         cout << " ========================= " << endl;
         cout << n_gen << " GENERATION" << endl;
         if (n_gen > GENERATION_SIZE) {
@@ -397,9 +412,16 @@ int main(int argc, char *argv[]){
 
         //selection   
         vector<float>roulette = make_roullte(fitness_list);
+        if (roulette[0] == -1) {
+            cout << "convergence" << endl;
+            break;
+        }
 
         vector<vector<int>> new_chromosomes;
-        for (int i = 0; i < POPULATION_SIZE; i++) {
+        new_chromosomes.push_back(chromosomes[min_element(fitness_list.begin(), fitness_list.end()) - fitness_list.begin()]);
+        for (int i = 1; i < POPULATION_SIZE; i++) {
+            //cout << "selection" << endl;
+            //cout << roulette[roulette.size()-1]<<endl;
             vector<int> parents_index = selection(roulette, fitness_list);                        
       
             //normalization
@@ -407,11 +429,11 @@ int main(int argc, char *argv[]){
             vector<int> p2 = chromosomes[parents_index[1]];
 
             normalization(p1, p2, atoi(argv[1]));
-
+            //cout << "crossver" << endl;
             //crossover
-            vector<int> new_offspring = multi_point_xover(p1, p2, 3);              
+            vector<int> new_offspring = multi_point_xover(p1, p2, 5);              
 
-
+            //cout << "mutation" << endl;
             //mutation
             mutation(new_offspring, atoi(argv[1]));
             new_chromosomes.push_back(new_offspring);            
