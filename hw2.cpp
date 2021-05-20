@@ -11,7 +11,7 @@
 #include<time.h>
 
 using namespace std;
-
+#define NUMBEROFNODES 500
 #define GENERATION_SIZE 500
 #define POPULATION_SIZE 30
 
@@ -304,6 +304,79 @@ vector<int> multi_point_xover(vector<int> p1, vector<int> p2, int num_points) {
     return offspring;
 }
 
+void balancing(vector<int>& offspring, int cluster_num) {    
+
+    vector<int> t_count1(cluster_num, 0);
+
+    if (NUMBEROFNODES % cluster_num == 0) { //2, 개수 같아야 함
+        vector<int> c_num(cluster_num, 0);
+        vector<vector<int>> cluster_index;
+
+        for (int i = 0; i < cluster_num; i++) {
+            vector<int> v;
+            cluster_index.push_back(v);
+        }
+        for (int i = 0; i < offspring.size(); i++) {
+            c_num[offspring[i]] += 1;
+            cluster_index[offspring[i]].push_back(i);
+        }
+        if (c_num[0] == c_num[1]) {
+            return;
+        }
+        else {           
+            int max_elem = max_element(c_num.begin(), c_num.end()) - c_num.begin();
+            queue<int> q;
+            for (int i = 0; i < cluster_num; i++) {
+                if (i != max_elem) {
+                    for (int j = 0; j < (NUMBEROFNODES/2) - c_num[i]; j++) {
+                        q.push(i);
+                    }
+                }
+            }
+            while (true) {
+                if (q.empty()) {
+                    break;
+                }
+                int target = q.front();
+                q.pop();
+                int random_index = rand() % c_num[max_elem];                
+                offspring[cluster_index[max_elem][random_index]] = target;
+                c_num[max_elem]--;
+                cluster_index[max_elem].erase(cluster_index[max_elem].begin() + random_index);
+            }                        
+        }
+    }
+    else { //32 개수 하나 차이까지 허용 16, 15
+
+        vector<int> c_num(cluster_num, 0);  
+        vector<vector<int>> cluster_index;
+
+        for (int i = 0; i < cluster_num; i++) {
+            vector<int> v;
+            cluster_index.push_back(v);
+        }
+        
+        priority_queue<vector<int>> pq;
+
+        for (int i = 0; i < offspring.size(); i++) {
+            c_num[offspring[i]] += 1;
+            cluster_index[offspring[i]].push_back(i);
+        }
+
+        while (*max_element(c_num.begin(), c_num.end()) - *min_element(c_num.begin(), c_num.end()) != 1) {
+            int max_index = max_element(c_num.begin(), c_num.end()) - c_num.begin();
+            int min_index = min_element(c_num.begin(), c_num.end()) - c_num.begin();
+
+            //원소 하나씩 뺄 예정
+            int temp_rand = rand() % cluster_index[max_index].size();
+            offspring[cluster_index[max_index][temp_rand]] = min_index;
+            c_num[max_index]--;
+            c_num[min_index]++;
+            cluster_index[max_index].erase(cluster_index[max_index].begin() + temp_rand);
+        }                
+    }    
+}
+
 void mutation(vector<int>& offspring, int cluster_num) {
     // mutation rates = 0.01    
 
@@ -318,7 +391,7 @@ void mutation(vector<int>& offspring, int cluster_num) {
         }
     }
 
-    //cout << c0 << " "<<  c1 << endl;
+    cout << c0 << " "<<  c1 << endl;
 
     for (int i = 0; i < offspring.size(); i++) {
         if (rand() % 2000 == 1) {            
@@ -334,18 +407,18 @@ void mutation(vector<int>& offspring, int cluster_num) {
         }
     }
 
-    //c0 = 0;
-    //c1 = 0;
-    //for (int i = 0; i < offspring.size(); i++) {
-    //    if (offspring[i] == 0) {
-    //        c0 += 1;
-    //    }
-    //    else {
-    //        c1 += 1;
-    //    }
-    //}
-    //cout << c0 << " " << c1 << endl;
-    //cout << "========================" << endl;
+    c0 = 0;
+    c1 = 0;
+    for (int i = 0; i < offspring.size(); i++) {
+        if (offspring[i] == 0) {
+            c0 += 1;
+        }
+        else {
+            c1 += 1;
+        }
+    }
+    cout << c0 << " " << c1 << endl;
+    cout << "========================" << endl;
 }
 
 vector<string> split(string s, string divid) {
@@ -432,6 +505,8 @@ int main(int argc, char *argv[]){
             //cout << "crossver" << endl;
             //crossover
             vector<int> new_offspring = multi_point_xover(p1, p2, 5);              
+
+            balancing(new_offspring, atoi(argv[1]));
 
             //cout << "mutation" << endl;
             //mutation
